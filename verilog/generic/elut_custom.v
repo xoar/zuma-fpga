@@ -5,12 +5,12 @@
 #	2012
 #	LUTRAM wrapper
 */
-`include "define.v"
-`include "def_generated.v"
+`include "define.vh"
 module elut_custom #(
 
 	parameter used = 0,
-	parameter LUT_MASK={2**K{1'b0}}
+	parameter ZUMA_LUT_SIZE = `ZUMA_LUT_SIZE,
+	parameter LUT_MASK={2**ZUMA_LUT_SIZE{1'b0}}
 
 ) (
 	a,
@@ -101,7 +101,7 @@ elut_xilinx LUT (
 
 `endif
 
-`ifdef XILINX_ISIM //X'd inputs will break the simulation
+`ifdef SIMULATION //X'd inputs will break the simulation
 assign dpo  = (lut_output === 1'bx) ? 0 : lut_output ;
 assign qdpo = (lut_registered_output === 1'bx) ? 0 : lut_registered_output ;
 `else

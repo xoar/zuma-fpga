@@ -5,14 +5,13 @@
 #	2012
 #	Configuration controller (low area, serial write only)
 */
-`include "mathmacros.v"
+`include "mathmacros.vh"
 
 module config_controller
 #(
-	parameter WIDTH = 40,
-	parameter STAGES = 16,
-	parameter LUTSIZE = 6
-
+	parameter LUTSIZE = `ZUMA_LUT_SIZE,
+	parameter STAGES  = `NUM_CONFIG_STAGES,
+	parameter WIDTH   = `CONFIG_WIDTH
  )
 	
 (
@@ -47,7 +46,7 @@ done
 	assign progress = config_progress;
 	//need to load actual bitstream from off-chip
 
-	// generates the write anable for each tile (or other stage of configuration)
+	// generates the write enable for each tile (or other stage of configuration)
 	shiftreg
 	#(
 	.LENGTH(STAGES)

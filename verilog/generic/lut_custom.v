@@ -8,14 +8,16 @@
 
 /* These luts are used for building configurable muxes.*/
 
-`include "define.v"
-`include "def_generated.v"
+`include "define.vh"
+`ifdef ZUMA_VERIFICATION
 `include "primitives.v"
+`endif
 
 module lut_custom #(
 
 	parameter used = 0,
-	parameter LUT_MASK={2**K{1'b0}}
+	parameter ZUMA_LUT_SIZE = `ZUMA_LUT_SIZE,
+	parameter LUT_MASK={2**ZUMA_LUT_SIZE{1'b0}}
 
 ) (
 	a,

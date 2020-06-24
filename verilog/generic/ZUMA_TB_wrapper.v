@@ -9,8 +9,8 @@
 #	- Pulled configuration (counting) logic into the TB to make it self-contained
 #   - Adapted for sequential circuits
 */
-`include "define.v"
-`include "def_generated.v"
+`include "define.vh"
+`include "def_generated.vh"
 module ZUMA_TB_wrapper 
 (	
     reset,
@@ -18,8 +18,11 @@ module ZUMA_TB_wrapper
     inputs,
     outputs
 );
-    parameter LUT_SIZE   = ZUMA_LUT_SIZE;
-    parameter NUM_STAGES = NUM_CONFIG_STAGES;
+    parameter LUT_SIZE     = `ZUMA_LUT_SIZE;
+    parameter NUM_STAGES   = `NUM_CONFIG_STAGES;
+    parameter NUM_INPUTS   = `NUM_INPUTS;
+    parameter NUM_OUTPUTS  = `NUM_OUTPUTS;
+    parameter CONFIG_WIDTH = `CONFIG_WIDTH;
     
     input clk;
     input reset;    

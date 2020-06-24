@@ -35,14 +35,17 @@
 
 // synopsys translate_off
 `timescale 1 ps / 1 ps
+//`include "def_generated.vh"
 // synopsys translate_on
-module fixed_config (
+module fixed_config 
+#(
+	parameter LUT_SIZE = `ZUMA_LUT_SIZE,
+	parameter NUM_STAGES  = `NUM_CONFIG_STAGES
+ )
+(
   address_in,
 	clock,
 	q);
-
-  parameter LUT_SIZE = 6;
-  parameter NUM_STAGES = 78;
 
   input   [31:0]  address_in;
 	input	          clock;

@@ -5,13 +5,13 @@
 #	2012
 #	Configuration controller (addressable)
 */
-`include "mathmacros.v"
+`include "mathmacros.vh"
 
 module config_controller_simple
 #(
-	parameter WIDTH = 40,
-	parameter STAGES = 16,
-	parameter LUTSIZE = 6
+	parameter LUTSIZE = `ZUMA_LUT_SIZE,
+	parameter STAGES  = `NUM_CONFIG_STAGES,
+	parameter WIDTH   = `CONFIG_WIDTH
 
  )
 	

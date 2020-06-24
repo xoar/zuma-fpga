@@ -41,6 +41,7 @@ def checkOverlayEquivalence(zumaDir,yosysDir,vtrDir,vprVersion):
     #copy the verification files
     cp("abc_out_v.blif", str(zumaDir / "verilog/verification/VerificationTestsuite"))
     cp("verificationOverlay.v", str(zumaDir / "verilog/verification/VerificationTestsuite"))
+    cp("../def_generated.vh", str(zumaDir / "verilog/verification/VerificationTestsuite"))
     cp("top_module.v", str(zumaDir / "verilog/verification/VerificationTestsuite"))
 
     #back up the curent cwd

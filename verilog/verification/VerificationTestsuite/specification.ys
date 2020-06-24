@@ -1,5 +1,6 @@
 # Synthesis script for yosys
 
+read -sv *.vh
 read -sv *.v
 hierarchy -top top_module
 proc -global_arst reset

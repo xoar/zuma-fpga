@@ -5,13 +5,13 @@
 #	2012
 #	Shift register
 */
-`include "mathmacros.v"
+`include "mathmacros.vh"
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
 module shiftreg 
 #(
-	parameter LENGTH = 16
+	parameter LENGTH = `NUM_CONFIG_STAGES
  )
 (	shift_in,
 	clk,

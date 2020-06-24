@@ -53,7 +53,7 @@
 // the core, lut_xilinx. When compiling the wrapper file, be sure to
 // reference the XilinxCoreLib Verilog simulation library. For detailed
 // instructions, please refer to the "CORE Generator Help".
-ZUMA_LUT_SIZE
+`include "def_generated.vh"
 `timescale 1ns/1ps
 
 module lut_xilinx(
@@ -65,9 +65,9 @@ module lut_xilinx(
 	dpo);
 
 
-input [ZUMA_LUT_SIZE-1 : 0] a;
+input [`ZUMA_LUT_SIZE-1 : 0] a;
 input [0 : 0] d;
-input [ZUMA_LUT_SIZE-1 : 0] dpra;
+input [`ZUMA_LUT_SIZE-1 : 0] dpra;
 input clk;
 input we;
 output [0 : 0] dpo;
