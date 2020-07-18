@@ -474,12 +474,12 @@ def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None):
 ###-----------------------------------------------------------------------------
 
 #done
-def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters = ""):
+def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters = "",assignMappings=""):
 
     #first the interface name
     parameterString = ""
     if parameters is not "":
-        parameterString = " #( " + parameters + " )"
+        parameterString = " #(\n" + parameters + " )"
 
     interfaceString = moduleName +  parameterString + " " + instanceName + ' (\n'
     moduleInterfaceString  = 'module ' + moduleName + parameterString + ' (\n'
@@ -601,6 +601,9 @@ def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,pa
                     sys.exit(1)
 
             file.write( outputNodeString )
+
+        #if there are some assignMappings to process
+        file.write( assignMappings )
 
 ###-----------------------------------------------------------------------------
 ###--------------node graph printer --------------------------------------------
@@ -796,7 +799,9 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
 
     outputNames.append((outputWireName,outputModelName,modifier))
 
-    #hacky TODO: move this to writeReusableBle
+    #hacky TODO: move this to writeReusableBle and the general interface
+    assignMappings =""
+
     if type == 'instantiation':
 
         lutMappedNode = globs.technologyMappedNodes.getNodeByName(lutNode.mappedNodes[0])
@@ -811,9 +816,23 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
                      ".lutConfigOffset("+str(lutConfigOffset) + "),\n" + \
                      ".muxConfigStage(" +str(muxConfigStage)  + "),\n" + \
                      ".muxConfigOffset("+str(muxConfigOffset) + ")\n"
+    else:
+
+        #for (inputWireName,inputModelName,modifier) in inputNames:
+        #    assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
+        #TODO: clean this up and use the solution above
+        for inputName in inputNames:
+            if (isinstance(inputName,tuple)) and (len(inputName) == 3):
+                (inputWireName,inputModelName,modifier) = inputName
+                assignMappings += "wire " + inputWireName + ";\n"
+                assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
 
 
-    generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters)
+
+        for (outputWireName,outputModelName,modifier) in outputNames:
+            assignMappings += "assign " + outputWireName + " =  " + outputModelName + ";\n"
+
+    generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters,assignMappings)
 
 
 #instantiate all interconnect node for the given cluster
@@ -848,10 +867,10 @@ def buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox):
 #done
 def buildReusableBleDescription(file,cluster,location,bleIndex,unprocessed,blackbox):
 
-    paramtersDescription = "parameter lutConfigStage,\n" + \
-                           "parameter lutConfigOffset,\n" + \
-                           "parameter muxConfigStage,\n" + \
-                           "parameter muxConfigOffset\n"
+    paramtersDescription = "parameter lutConfigStage = 0,\n" + \
+                           "parameter lutConfigOffset = 0,\n" + \
+                           "parameter muxConfigStage = 0,\n" + \
+                           "parameter muxConfigOffset = 0 \n"
 
     buildReusableBleInterface('description',file,cluster,location,bleIndex,paramtersDescription)
     buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox)
@@ -1080,6 +1099,10 @@ def buildVerificationOverlay(fileName,verificationalBuild,blackBox):
     # to make this delayed call easier we have a list of unprocessed description functions
     # which are processed by the processQuededDesctiptions function until now more
     # description function has spawned.
+
+    #this function runs serveral time so we have to unchek the status of the build decscription
+    global reusableBleDescriptionQueued
+    reusableBleDescriptionQueued = False
 
     #the list of unprocessed description calls
     unprocessed= []
