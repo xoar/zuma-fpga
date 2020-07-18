@@ -3,6 +3,10 @@ import BuildBitstream
 import globs
 from functools import partial
 
+##dirty workaround to check of the ble resusable desciption was already queued
+reusableBleDescriptionQueued = False
+
+
 ## Create the generated definition file
 def createDefGenerated():
 
@@ -205,7 +209,8 @@ def list_to_vector(names):
     return string
 
 
-def writeLUTRAMInputs(f, node):
+#TODO: save the stageName and the offsetName in the Node
+def writeLUTRAMInputs(f, node,stageName = None,offsetName = None):
 
     #list of input wire names
     inputNames = []
@@ -214,6 +219,14 @@ def writeLUTRAMInputs(f, node):
     #was set in BuildVerilog.py
     config_stage = node.stageNumber
     config_offset = node.stageOffset
+
+    #if the stageName and Offset Name was provided as a parameter in the module
+    #we use these instead of the numbers
+
+    if (stageName is not None) and (offsetName is not None):
+        #a doubled use of str doesnt change anything
+        config_stage = stageName
+        config_offset = offsetName
 
     #is it a regular routing mux or a mux on a ble behind a lut(ffmux)?
     #the input of a ffmux is the name of the conncected lut.
@@ -269,10 +282,10 @@ def writeLUTRAMOutputs(f, node):
 
 ## write the verilog code for the LUTRAM.
 # The LUTRAM can be a lutram of a routing mux, a ffmux or a eLUT or Ipin
-def writeLUTRAM(f, node):
+def writeLUTRAM(f, node,stageName = None,offsetName = None):
 
     writeLUTRAMHeader(f, node)
-    writeLUTRAMInputs(f, node)
+    writeLUTRAMInputs(f, node,stageName,offsetName)
     writeLUTRAMOutputs(f, node)
 
 
@@ -436,7 +449,7 @@ def buildOuterRouting(file,unprocessed):
         writeNode(file,node,False,unprocessed)
 
 #print the wire and lutram instance
-def writeMappedNode(file,node,isOnCluster):
+def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None):
 
     #write a wire for the node output.
     #because every node has only one unique output
@@ -453,7 +466,7 @@ def writeMappedNode(file,node,isOnCluster):
         #signal that this node is chosen to be in a cluster module
         node.isOnCluster = isOnCluster
         #now write the lut code
-        writeLUTRAM(file,node)
+        writeLUTRAM(file,node,stageName,offsetName)
 
 
 ###-----------------------------------------------------------------------------
@@ -461,11 +474,14 @@ def writeMappedNode(file,node,isOnCluster):
 ###-----------------------------------------------------------------------------
 
 #done
-def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames):
+def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters = ""):
 
     #first the interface name
-    interfaceString = moduleName + " " + instanceName + ' (\n'
-    moduleInterfaceString  = 'module ' + moduleName + ' (\n'
+    if parameters is not "":
+        parameterString = " #(" + parameters + ")"
+
+    interfaceString = moduleName + " " + instanceName + parameterString + ' (\n'
+    moduleInterfaceString  = 'module ' + moduleName + parameterString + ' (\n'
 
     if type == 'instantiation':
         file.write( interfaceString )
@@ -476,11 +492,35 @@ def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames):
     for inputName in inputNames:
 
         if isinstance(inputName,str):
-            inputString = '.' + inputName + '(' + inputName + '),\n'
-            moduleInputString = inputName + ',\n'
+            inputWireName = inputName
+            inputModelName = inputName
+
         elif isinstance(inputName,tuple):
-            inputString = '.' + inputName[0] + '(' + inputName[0] + '),\n'
-            moduleInputString = inputName[0] + ',\n'
+
+            #currently we differ by the tuple size if the tuple is used
+            #for providing additional input size informations(length 2) or
+            #provide a different input name (length 3)
+            #TODO: add a modifier for the input size  information and
+            #use for both a tuple size of 3
+            #currently the modifier "DifferentInputNames" is used
+
+            if len(inputName) == 2:
+                inputWireName = inputName[0]
+                inputModelName = inputName[0]
+
+            elif len(inputName) == 3:
+                inputWireName = inputName[0]
+                inputModelName = inputName[1]
+
+            else:
+                print("Error generalInterface: wrong tuple size")
+                sys.exit(1)
+        else:
+            print("Error generalInterface: wrong input parameter")
+            sys.exit(1)
+
+        inputString = '.' + inputModelName + '(' + inputWireName + '),\n'
+        moduleInputString = inputModelName + ',\n'
 
         if type == 'instantiation':
             file.write( inputString )
@@ -491,14 +531,26 @@ def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames):
     #the output is just the node id
     for index,outputName in enumerate(outputNames):
 
-        #isnt the last element
-        if index < len(outputNames) -1:
-            outputString = '.' + outputName + '(' + outputName + '),\n'
-            moduleOuputString = outputName + ',\n'
+        if isinstance(outputName,str):
+            outputWireName = outputName
+            outputModelName = outputName
+
+        elif isinstance(outputName,tuple):
+            outputWireName = outputName[0]
+            outputModelName = outputName[1]
 
         else:
-            outputString = '.' + outputName + '(' + outputName + ')\n'
-            moduleOuputString =  outputName
+            print("Error generalInterface: wrong output parameter")
+            sys.exit(1)
+
+        #isnt the last element
+        if index < len(outputNames) -1:
+            outputString = '.' + outputModelName + '(' + outputWireName + '),\n'
+            moduleOuputString = outputModelName + ',\n'
+
+        else:
+            outputString = '.' + outputModelName + '(' + outputWireName + ')\n'
+            moduleOuputString =  outputModelName
 
         if type == 'instantiation':
             file.write( outputString )
@@ -519,11 +571,34 @@ def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames):
                 inputNodeString = 'input ' + inputName + ';\n'
             #tuple has name, size str
             elif isinstance(inputName,tuple):
-                inputNodeString = 'input ' + inputName[1] + ' ' + inputName[0] + ';\n'
+
+                #TODO: add a modifier for the input size  information and
+                #use for both a tuple size of 3
+                if len(inputName) == 2:
+                    inputNodeString = 'input ' + inputName[1] + ' ' + inputName[0] + ';\n'
+                elif len(inputName) == 3:
+                    #we have to use the model name which is on the second position
+                    inputNodeString = 'input ' + inputName[1] + ';\n'
+                else:
+                    print("Error generalInterface: wrong tuple size")
+                    sys.exit(1)
+
             file.write( inputNodeString )
 
         for outputName in outputNames:
-            outputNodeString = 'output ' + outputName + ';\n'
+
+            if isinstance(outputName,str):
+                outputNodeString = 'output ' + outputName + ';\n'
+
+            elif isinstance(outputName,tuple):
+
+                if len(outputName) == 3:
+                    #we have to use the model name which is on the second position
+                    outputNodeString = 'output ' + outputName[1] + ';\n'
+                else:
+                    print("Error generalInterface: wrong tuple size")
+                    sys.exit(1)
+
             file.write( outputNodeString )
 
 ###-----------------------------------------------------------------------------
@@ -568,13 +643,19 @@ def writeNodeGraphNodeInterface(type,node,file):
         writeWire(file,mappedNode)
 
 #done
-def writeNodeGraphNodeBody(node,file,isOnCluster):
+#stagename and offsetName make only sense when writeNodeGraphNodeBody was directly used
+#in a module.
+def writeNodeGraphNodeBody(node,file,isOnCluster,configStageNames = None,configOffsetNames = None):
 
     #now the mapped nodes as content
-    for mappedNodeName in node.mappedNodes:
+    for index,mappedNodeName in enumerate(node.mappedNodes):
 
         mappedNode = globs.technologyMappedNodes.getNodeByName(mappedNodeName)
-        writeMappedNode(file,mappedNode,isOnCluster)
+
+        if (configStageNames is not None) and (configOffsetNames is not None):
+            writeMappedNode(file,mappedNode,isOnCluster,configStageNames[index],configOffsetNames[index])
+        else:
+            writeMappedNode(file,mappedNode,isOnCluster)
 
 #done
 #write the module description to the file
@@ -667,6 +748,117 @@ def buildInterconDescription(file,cluster,location,unprocessed,blackbox):
 
 
 ###-----------------------------------------------------------------------------
+###--------------reusable ble printer ---------------------------------------------------
+###-----------------------------------------------------------------------------
+
+
+def writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox):
+
+    buildReusableBleInterface('instantiation',file,cluster,location,bleIndex)
+    #only queue the desctiption once.
+    if not reusableBleDescriptionQueued:
+        call = partial(buildReusableBleDescription,file,cluster,location,bleIndex,unprocessed,blackbox)
+        unprocessed.append(call)
+        reusableBleDescriptionQueued = True
+
+#done
+def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = ""):
+
+    #first the interface name
+    x,y = location
+    moduleName = 'Mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
+    instanceName = 'mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
+
+    #get the lut and ffmux node
+    lutId = cluster.LUT_nodes[bleIndex]
+    lutNode = globs.nodes[lutId]
+
+    ffmuxId = cluster.LUT_FFMUX_nodes[bleIndex]
+    ffmuxNode = globs.nodes[ffmuxId]
+
+    # inputs and output
+    inputNames = [('wr_addr','[5:0]'),('wr_data','[32-1:0]'),('wren','[4096:0]'),'clk','clk2','ffrst']
+    outputNames = []
+
+    for index,inputId in enumerate(lutNode.inputs):
+        inputWireName = 'node_' + str(inputId)
+        inputModelName = 'I' + str(index)
+        modifier = "DifferentInputNames"
+        inputNames.append((inputWireName,inputModelName,modifier))
+
+    outputWireName = 'node_' + str(ffmuxId)
+    outputModelName = 'O0'
+    modifier = "DifferentInputNames"
+
+    outputNames.append((outputWireName,outputModelName,modifier))
+
+    #hacky TODO: move this to writeReusableBle
+    if type == 'instantiation':
+
+        lutMappedNode = lutNode.mappedNodes[0]
+        muxMappedNode = ffmuxNode.mappedNodes[0]
+
+        lutConfigStage = lutMappedNode.stageNumber
+        lutConfigOffset = lutMappedNode.stageOffset
+        muxConfigStage =  muxMappedNode.stageNumber
+        muxConfigOffset = muxMappedNode.stageOffset
+
+        parameters = "parameter .lutConfigStage(" +str(lutConfigStage)  + "),\n" + \
+                     "parameter .lutConfigOffset("+str(lutConfigOffset) + "),\n" + \
+                     "parameter .muxConfigStage(" +str(muxConfigStage)  + "),\n" + \
+                     "parameter .muxConfigOffset("+str(muxConfigOffset) + ")\n"
+
+
+    generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters)
+
+
+#instantiate all interconnect node for the given cluster
+#done
+def buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox):
+
+    #if the blackBox should omit the genration
+    if (blackbox and globs.params.blackBoxBle):
+        return
+
+    #get the lut and ffmux node
+    lutId = cluster.LUT_nodes[bleIndex]
+    lutNode = globs.nodes[lutId]
+
+    ffmuxId = cluster.LUT_FFMUX_nodes[bleIndex]
+    ffmuxNode = globs.nodes[ffmuxId]
+
+    #because the elut node has special output wires( two outputs)
+    #we cant wrap them into a normal module(just one output)
+    #so we just print them without instantiation.
+
+    #use the config stage and offest paramter sepcifier ceated in buildReusableBleDescription
+    #"parameter lutConfigStage,\n"
+    #"parameter lutConfigOffset,\n"
+    #"parameter muxConfigStage,\n"
+    #"parameter muxConfigOffset\n"
+
+    writeNodeGraphNodeBody(lutNode,file,True,["lutConfigStage"],["lutConfigOffset"])
+    writeNodeGraphNodeBody(ffmuxNode,file,True,["muxConfigStage"],["muxConfigOffset"])
+
+
+#done
+def buildReusableBleDescription(file,cluster,location,bleIndex,unprocessed,blackbox):
+
+    paramtersDescription = "parameter lutConfigStage,\n" + \
+                           "parameter lutConfigOffset,\n" + \
+                           "parameter muxConfigStage,\n" + \
+                           "parameter muxConfigOffset\n"
+
+    buildReusableBleInterface('description',file,cluster,location,bleIndex,paramtersDescription)
+    buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox)
+
+    #finally the end of the module
+    file.write( 'endmodule\n')
+
+
+
+
+###-----------------------------------------------------------------------------
 ###--------------ble printer ---------------------------------------------------
 ###-----------------------------------------------------------------------------
 
@@ -678,8 +870,6 @@ def writeBle(file,cluster,location,bleIndex,unprocessed,blackbox):
         unprocessed.append(call)
     else:
         buildBleBody(file,cluster,bleIndex,unprocessed,blackbox)
-
-
 
 #done
 def buildBleInterface(type,file,cluster,location,bleIndex):
