@@ -1021,8 +1021,11 @@ def buildClusterBody(file,cluster,location,unprocessed,blackbox):
     #then the bles
     for bleIndex in range(globs.params.N):
         #writeBle(file,cluster,location,bleIndex,unprocessed,blackbox)
-        writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox)
-
+        #for now we always use the reusable ble when ble modules are activated
+        if globs.params.hierarchyBle:
+            writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox)
+        else:
+            writeBle(file,cluster,location,bleIndex,unprocessed,blackbox)
     #then the output nodes
     for opinDriver in cluster.outputs:
         #get the ipin node.
