@@ -167,19 +167,23 @@ def writePassTroughNode(file,node):
     file.write('assign ' + 'node_' + node.name + ' = ' + 'node_' + node.inputs[0] + ';\n');
 
 
-def writeLUTRAMHeader(f, node):
+def writeLUTRAMHeader(f, node,usedName = None,bitmaskName = None):
 
     #is it an eLUT or just a mux?
     if node.eLUT:
 
         #has a configuration, is used
-        if node.bits is not None:
-
+        if (node.bits is not None):
             #build the configuration bits
             bitsStr = ''.join(map(str,node.bits))
 
             f.write('elut_custom ' + \
                     ' #( ' + ".used(1),\n .LUT_MASK(64'b" +  bitsStr + ')\n) ' + 'LUT_' + node.name +  ' ( ' )
+
+        #when we use a named parameter for 'used',its value and bitmask must be forwarded
+        elif (usedName is not None):
+            f.write('elut_custom ' + \
+                    ' #( ' + ".used(" + usedName + "),\n .LUT_MASK(" + bitmaskName + ')\n) ' + 'LUT_' + node.name +  ' ( ' )
 
         #if not the default parameter values are used
         else:
@@ -194,6 +198,10 @@ def writeLUTRAMHeader(f, node):
             bitsStr = ''.join(map(str,node.bits))
             f.write('lut_custom ' + \
                         ' #( ' + ".used(1),\n .LUT_MASK(64'b" +  bitsStr + ')\n) '  + 'MUX_' + node.name + ' ( ' )
+
+        elif (usedName is not None):
+            f.write('lut_custom ' + \
+                        ' #( ' + ".used(" + usedName + "),\n .LUT_MASK(" + bitmaskName + ')\n) '  + 'MUX_' + node.name + ' ( ' )
         else:
             f.write('lut_custom ' + 'MUX_' + node.name + ' ( ' )
 
@@ -282,9 +290,9 @@ def writeLUTRAMOutputs(f, node):
 
 ## write the verilog code for the LUTRAM.
 # The LUTRAM can be a lutram of a routing mux, a ffmux or a eLUT or Ipin
-def writeLUTRAM(f, node,stageName = None,offsetName = None):
+def writeLUTRAM(f, node,stageName = None,offsetName = None,usedName = None,bitmaskName = None):
 
-    writeLUTRAMHeader(f, node)
+    writeLUTRAMHeader(f, node,usedName,bitmaskName)
     writeLUTRAMInputs(f, node,stageName,offsetName)
     writeLUTRAMOutputs(f, node)
 
@@ -449,7 +457,7 @@ def buildOuterRouting(file,unprocessed):
         writeNode(file,node,False,unprocessed)
 
 #print the wire and lutram instance
-def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None):
+def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None,usedName = None,bitmaskName = None):
 
     #write a wire for the node output.
     #because every node has only one unique output
@@ -466,7 +474,7 @@ def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None):
         #signal that this node is chosen to be in a cluster module
         node.isOnCluster = isOnCluster
         #now write the lut code
-        writeLUTRAM(file,node,stageName,offsetName)
+        writeLUTRAM(file,node,stageName,offsetName,usedName,bitmaskName)
 
 
 ###-----------------------------------------------------------------------------
@@ -649,7 +657,7 @@ def writeNodeGraphNodeInterface(type,node,file):
 #done
 #stagename and offsetName make only sense when writeNodeGraphNodeBody was directly used
 #in a module.
-def writeNodeGraphNodeBody(node,file,isOnCluster,configStageNames = None,configOffsetNames = None):
+def writeNodeGraphNodeBody(node,file,isOnCluster,configStageNames = None,configOffsetNames = None,usedNames = None,bitmaksNames = None):
 
     #now the mapped nodes as content
     for index,mappedNodeName in enumerate(node.mappedNodes):
@@ -657,7 +665,7 @@ def writeNodeGraphNodeBody(node,file,isOnCluster,configStageNames = None,configO
         mappedNode = globs.technologyMappedNodes.getNodeByName(mappedNodeName)
 
         if (configStageNames is not None) and (configOffsetNames is not None):
-            writeMappedNode(file,mappedNode,isOnCluster,configStageNames[index],configOffsetNames[index])
+            writeMappedNode(file,mappedNode,isOnCluster,configStageNames[index],configOffsetNames[index],usedNames[index],bitmaksNames[index])
         else:
             writeMappedNode(file,mappedNode,isOnCluster)
 
@@ -812,10 +820,34 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
         muxConfigStage =  muxMappedNode.stageNumber
         muxConfigOffset = muxMappedNode.stageOffset
 
+
+        if (lutMappedNode.bits):
+            #build the configuration bits
+            lutUsed = "1"
+            bitsStr = ''.join(map(str,lutMappedNode.bits))
+            lutBitmask = "64'b" + bitsStr
+        else:
+            lutUsed = "0"
+            lutBitmask = "{2**6{1'b0}}"
+
+        if (muxMappedNode.bits):
+            #build the configuration bits
+            muxUsed = "1"
+            bitsStr = ''.join(map(str,muxMappedNode.bits))
+            muxBitmask = "64'b" + bitsStr
+        else:
+            muxUsed = "0"
+            muxBitmask = "{2**6{1'b0}}"
+
+
         parameters = ".lutConfigStage(" +str(lutConfigStage)  + "),\n" + \
                      ".lutConfigOffset("+str(lutConfigOffset) + "),\n" + \
+                     ".lutUsed("+str(lutUsed) + "),\n" + \
+                     ".lutBitmask("+str(lutBitmask) + "),\n" + \
                      ".muxConfigStage(" +str(muxConfigStage)  + "),\n" + \
-                     ".muxConfigOffset("+str(muxConfigOffset) + ")\n"
+                     ".muxConfigOffset("+str(muxConfigOffset) + "),\n" + \
+                     ".muxUsed("+str(muxUsed) + "),\n" + \
+                     ".muxBitmask("+str(muxBitmask) + ")\n"
     else:
 
         #for (inputWireName,inputModelName,modifier) in inputNames:
@@ -860,8 +892,8 @@ def buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox):
     #"parameter muxConfigStage,\n"
     #"parameter muxConfigOffset\n"
 
-    writeNodeGraphNodeBody(lutNode,file,True,["lutConfigStage"],["lutConfigOffset"])
-    writeNodeGraphNodeBody(ffmuxNode,file,True,["muxConfigStage"],["muxConfigOffset"])
+    writeNodeGraphNodeBody(lutNode,file,True,["lutConfigStage"],["lutConfigOffset"],["lutUsed"],["lutBitmask"])
+    writeNodeGraphNodeBody(ffmuxNode,file,True,["muxConfigStage"],["muxConfigOffset"],["muxUsed"],["muxBitmask"])
 
 
 #done
@@ -869,8 +901,12 @@ def buildReusableBleDescription(file,cluster,location,bleIndex,unprocessed,black
 
     paramtersDescription = "parameter lutConfigStage = 0,\n" + \
                            "parameter lutConfigOffset = 0,\n" + \
+                           "parameter lutUsed = 0,\n" + \
+                           "parameter [0:2**6-1] lutBitmask={2**6{1'b0}},\n" + \
                            "parameter muxConfigStage = 0,\n" + \
-                           "parameter muxConfigOffset = 0 \n"
+                           "parameter muxConfigOffset = 0, \n" + \
+                           "parameter muxUsed = 0,\n" + \
+                           "parameter [0:2**6-1] muxBitmask={2**6{1'b0}}\n"
 
     buildReusableBleInterface('description',file,cluster,location,bleIndex,paramtersDescription)
     buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox)
