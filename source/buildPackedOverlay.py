@@ -477,10 +477,11 @@ def writeMappedNode(file,node,isOnCluster,stageName = None,offsetName = None):
 def generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters = ""):
 
     #first the interface name
+    parameterString = ""
     if parameters is not "":
-        parameterString = " #(" + parameters + ")"
+        parameterString = " #( " + parameters + " )"
 
-    interfaceString = moduleName + " " + instanceName + parameterString + ' (\n'
+    interfaceString = moduleName +  parameterString + " " + instanceName + ' (\n'
     moduleInterfaceString  = 'module ' + moduleName + parameterString + ' (\n'
 
     if type == 'instantiation':
@@ -755,7 +756,10 @@ def buildInterconDescription(file,cluster,location,unprocessed,blackbox):
 def writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox):
 
     buildReusableBleInterface('instantiation',file,cluster,location,bleIndex)
+
     #only queue the desctiption once.
+    global reusableBleDescriptionQueued
+
     if not reusableBleDescriptionQueued:
         call = partial(buildReusableBleDescription,file,cluster,location,bleIndex,unprocessed,blackbox)
         unprocessed.append(call)
@@ -766,7 +770,7 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
 
     #first the interface name
     x,y = location
-    moduleName = 'Mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
+    moduleName = 'ResuableBle'
     instanceName = 'mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
 
     #get the lut and ffmux node
@@ -795,18 +799,18 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
     #hacky TODO: move this to writeReusableBle
     if type == 'instantiation':
 
-        lutMappedNode = lutNode.mappedNodes[0]
-        muxMappedNode = ffmuxNode.mappedNodes[0]
+        lutMappedNode = globs.technologyMappedNodes.getNodeByName(lutNode.mappedNodes[0])
+        muxMappedNode = globs.technologyMappedNodes.getNodeByName(ffmuxNode.mappedNodes[0])
 
         lutConfigStage = lutMappedNode.stageNumber
         lutConfigOffset = lutMappedNode.stageOffset
         muxConfigStage =  muxMappedNode.stageNumber
         muxConfigOffset = muxMappedNode.stageOffset
 
-        parameters = "parameter .lutConfigStage(" +str(lutConfigStage)  + "),\n" + \
-                     "parameter .lutConfigOffset("+str(lutConfigOffset) + "),\n" + \
-                     "parameter .muxConfigStage(" +str(muxConfigStage)  + "),\n" + \
-                     "parameter .muxConfigOffset("+str(muxConfigOffset) + ")\n"
+        parameters = ".lutConfigStage(" +str(lutConfigStage)  + "),\n" + \
+                     ".lutConfigOffset("+str(lutConfigOffset) + "),\n" + \
+                     ".muxConfigStage(" +str(muxConfigStage)  + "),\n" + \
+                     ".muxConfigOffset("+str(muxConfigOffset) + ")\n"
 
 
     generalInterface(type,file,moduleName,instanceName,inputNames,outputNames,parameters)
@@ -997,7 +1001,8 @@ def buildClusterBody(file,cluster,location,unprocessed,blackbox):
 
     #then the bles
     for bleIndex in range(globs.params.N):
-        writeBle(file,cluster,location,bleIndex,unprocessed,blackbox)
+        #writeBle(file,cluster,location,bleIndex,unprocessed,blackbox)
+        writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox)
 
     #then the output nodes
     for opinDriver in cluster.outputs:
