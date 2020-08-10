@@ -257,15 +257,29 @@ def writeLUTRAMInputs(f, node,stageName = None,offsetName = None):
     f.write('.dpra(' + list_to_vector(inputNames) + \
              '), // input [5 : 0] dpra\n')
 
-    f.write('''
-    .a(wr_addr), // input [5 : 0] a
-    .d(wr_data[''' + str(config_offset) + ''']), // input [0 : 0]
-    ''')
+    if hasattr(node,"newConfigProcess") and (node.newConfigProcess):
 
-    f.write('''
-    .clk(clk), // input clk
-    .we(wren[''' + str(config_stage) + ''']), // input we
-    ''')
+        f.write('''
+        .a(wr_addr), // input [5 : 0] a
+        .d(''' + 'node_' +  node.name  + "_data" + '''), // input [0 : 0]
+        ''')
+
+        f.write('''
+        .clk(clk), // input clk
+        .we(''' + 'node_' +  node.name  + "_we" + '''), // input we
+        ''')
+
+    else:
+
+        f.write('''
+        .a(wr_addr), // input [5 : 0] a
+        .d(wr_data[''' + str(config_offset) + ''']), // input [0 : 0]
+        ''')
+
+        f.write('''
+        .clk(clk), // input clk
+        .we(wren[''' + str(config_stage) + ''']), // input we
+        ''')
 
     if node.eLUT:
         f.write('''
@@ -664,8 +678,10 @@ def writeNodeGraphNodeBody(node,file,isOnCluster,configStageNames = None,configO
 
         mappedNode = globs.technologyMappedNodes.getNodeByName(mappedNodeName)
 
-        if (configStageNames is not None) and (configOffsetNames is not None):
+        if (configStageNames is not None) and (configOffsetNames is not None) and (usedNames is not None) and (bitmaksNames is not None):
             writeMappedNode(file,mappedNode,isOnCluster,configStageNames[index],configOffsetNames[index],usedNames[index],bitmaksNames[index])
+        elif (usedNames is not None) and (bitmaksNames is not None):
+            writeMappedNode(file,mappedNode,isOnCluster,None,None,usedNames[index],bitmaksNames[index])
         else:
             writeMappedNode(file,mappedNode,isOnCluster)
 
@@ -779,17 +795,30 @@ def writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox):
 #done
 def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = ""):
 
-    #first the interface name
-    x,y = location
-    moduleName = 'ResuableBle'
-    instanceName = 'mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
-
     #get the lut and ffmux node
     lutId = cluster.LUT_nodes[bleIndex]
     lutNode = globs.nodes[lutId]
 
     ffmuxId = cluster.LUT_FFMUX_nodes[bleIndex]
     ffmuxNode = globs.nodes[ffmuxId]
+
+    #get the mapped nodes, stage and offset number and signal that we use the new config process
+    lutMappedNode = globs.technologyMappedNodes.getNodeByName(lutNode.mappedNodes[0])
+    muxMappedNode = globs.technologyMappedNodes.getNodeByName(ffmuxNode.mappedNodes[0])
+
+    lutConfigStage = lutMappedNode.stageNumber
+    lutConfigOffset = lutMappedNode.stageOffset
+    muxConfigStage =  muxMappedNode.stageNumber
+    muxConfigOffset = muxMappedNode.stageOffset
+
+    lutMappedNode.newConfigProcess = True
+    muxMappedNode.newConfigProcess = True
+
+
+    #first the interface name
+    x,y = location
+    moduleName = 'ResuableBle'
+    instanceName = 'mod_ble_' + str(x) + '_' + str(y) + '_'+ str(bleIndex)
 
     # inputs and output
     inputNames = [('wr_addr','[5:0]'),('wr_data','[32-1:0]'),('wren','[4096:0]'),'clk','clk2','ffrst']
@@ -811,14 +840,6 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
     assignMappings =""
 
     if type == 'instantiation':
-
-        lutMappedNode = globs.technologyMappedNodes.getNodeByName(lutNode.mappedNodes[0])
-        muxMappedNode = globs.technologyMappedNodes.getNodeByName(ffmuxNode.mappedNodes[0])
-
-        lutConfigStage = lutMappedNode.stageNumber
-        lutConfigOffset = lutMappedNode.stageOffset
-        muxConfigStage =  muxMappedNode.stageNumber
-        muxConfigOffset = muxMappedNode.stageOffset
 
 
         if (lutMappedNode.bits):
@@ -848,7 +869,49 @@ def buildReusableBleInterface(type,file,cluster,location,bleIndex,parameters = "
                      ".muxConfigOffset("+str(muxConfigOffset) + "),\n" + \
                      ".muxUsed("+str(muxUsed) + "),\n" + \
                      ".muxBitmask("+str(muxBitmask) + ")\n"
+
+        #now the wren and data signals
+        modifier = "DifferentInputNames"
+
+        inputWireName =  "wren[" + str(lutConfigStage) + "]"
+        inputModelName = 'lutWe'
+        inputNames.append((inputWireName,inputModelName,modifier))
+
+        inputWireName =  "wr_data[" + str(lutConfigOffset) + "]"
+        inputModelName = 'lutData'
+        inputNames.append((inputWireName,inputModelName,modifier))
+
+        inputWireName = "wren[" + str(muxConfigStage) + "]"
+        inputModelName = 'muxWe'
+        inputNames.append((inputWireName,inputModelName,modifier))
+
+        inputWireName = "wr_data[" + str(muxConfigOffset) + "]"
+        inputModelName = 'muxData'
+        inputNames.append((inputWireName,inputModelName,modifier))
+
     else:
+
+        inputWireName = 'node_' + str(lutMappedNode.name) + "_we"
+        inputModelName = 'lutWe'
+        assignMappings += "wire " + inputWireName + ";\n"
+        assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
+
+
+        inputWireName = 'node_'  + str(lutMappedNode.name) + "_data"
+        inputModelName = 'lutData'
+        assignMappings += "wire " + inputWireName + ";\n"
+        assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
+
+        inputWireName = 'node_'  + str(muxMappedNode.name) + "_we"
+        inputModelName = 'muxWe'
+        assignMappings += "wire " + inputWireName + ";\n"
+        assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
+
+        inputWireName = 'node_' + str(muxMappedNode.name) +"_data"
+        inputModelName = 'muxData'
+        assignMappings += "wire " + inputWireName + ";\n"
+        assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
+
 
         #for (inputWireName,inputModelName,modifier) in inputNames:
         #    assignMappings += "assign " + inputWireName + " =  " + inputModelName + ";\n"
@@ -892,8 +955,11 @@ def buildReusableBleBody(file,cluster,bleIndex,unprocessed,blackbox):
     #"parameter muxConfigStage,\n"
     #"parameter muxConfigOffset\n"
 
-    writeNodeGraphNodeBody(lutNode,file,True,["lutConfigStage"],["lutConfigOffset"],["lutUsed"],["lutBitmask"])
-    writeNodeGraphNodeBody(ffmuxNode,file,True,["muxConfigStage"],["muxConfigOffset"],["muxUsed"],["muxBitmask"])
+    #writeNodeGraphNodeBody(lutNode,file,True,["lutConfigStage"],["lutConfigOffset"],["lutUsed"],["lutBitmask"])
+    #writeNodeGraphNodeBody(ffmuxNode,file,True,["muxConfigStage"],["muxConfigOffset"],["muxUsed"],["muxBitmask"])
+
+    writeNodeGraphNodeBody(lutNode,file,True,None,None,["lutUsed"],["lutBitmask"])
+    writeNodeGraphNodeBody(ffmuxNode,file,True,None,None,["muxUsed"],["muxBitmask"])
 
 
 #done
