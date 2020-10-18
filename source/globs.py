@@ -62,6 +62,9 @@ def init():
     #Width of the configuration port(in bits)
     params.config_width = 32
 
+    global blemaps
+    blemaps = dict()
+        
     global IOs,orderedInputs,orderedOutputs,clusters,switchbox,config_pattern
     ##a dictionary of IO instances. key is the location (x,y). see load_graph
     IOs = dict()
@@ -111,3 +114,19 @@ def addNode(node):
 def load_params():
     global params
     params = zuma_config.params
+    
+    x = 0
+    while x < params.X:
+        x += 1
+        
+        y = 0
+        while y < params.Y:
+            y += 1
+            
+            blemaps[x,y] = dict()
+            
+            n = 0
+            while n < params.N:
+                blemaps[x,y][n] = list()
+                n += 1
+

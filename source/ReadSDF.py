@@ -64,29 +64,71 @@ def getLutName(cell):
     elif lutName[0:4] == "LUT_":
         lutName = lutName[4:]
     else:
-
-        #have a cluster prefix : cluster_\d_\d or a hirachy node prefix: mod_node + node id
-        #a name could be then have only the prefix MUX_ or LUT_
-        #only extract the id and reassign it to lutname
-        #maybe we change the cluster and mode node modifier )? with a group
-        #if the flags turn on to have a more strict parsing
-        regexp = r"(cluster_\d+_\d+/)?(mod_ble_\d+_\d+_\d+/)?(mod_interconn_\d+_\d+/)?(mod_node_\d+/)?(MUX_|LUT_)(?P<id>\w*)"
-        pattern =re.compile(regexp)
+        
+        regexp = r"(cluster_\d+_\d+/)?(mod_ble_)(?P<Location>\w*)"
+        pattern = re.compile(regexp)
         res = pattern.search(lutName)
         extractedName = ''
-
+        
         if res is not None:
-            extractedName = res.group("id")
-        else:
-            print "ERROR: can't apply pattern on string:" + str(lutName)
-            sys.exit(1)
+            
+            print ('cell: ' + str(cell.instanceName))
+            
+            extractedName = res.group("Location")
+            x = int(extractedName[0])
+            y = int(extractedName[2])
+            n = int(extractedName[4])
+            
+            print ('res1: ' + str(extractedName))
+            print ('X: ' + str(x) + ' Y: ' + str(y) + ' N: ' + str(n))
+            
+            firstCluster = list(globs.blemaps.keys())[0]
+            firstBle = globs.blemaps[firstCluster][0]
+            print ('node: ' + str(firstBle))
+            
+            regexp = r"(cluster_\d+_\d+/)?(mod_ble_\d+_\d+_\d+/)?(mod_interconn_\d+_\d+/)?(mod_node_\d+/)?(MUX_|LUT_)(?P<id>\w*)"
+            pattern =re.compile(regexp)
+            res = pattern.search(lutName)
+            extractedName = ''
 
-        if (extractedName is not '') and (extractedName is not None):
-            return extractedName
+            if res is not None:
+                extractedName = res.group("id")
+                print ('node: ' + str(extractedName))
+                
+                index = firstBle.index(int(extractedName))
+                print ('index: ' + str(index))
+                
+                currentBle = globs.blemaps[x, y][n]
+                currentNode = currentBle[index]
+                print ('index: ' + str(currentNode))
+                
+                lutName = str(currentNode)
+        
         else:
-            print "ERROR: can't extract lut name of string:" + str(lutName)
-            sys.exit(1)
+            
+            #have a cluster prefix : cluster_\d_\d or a hirachy node prefix: mod_node + node id
+            #a name could be then have only the prefix MUX_ or LUT_
+            #only extract the id and reassign it to lutname
+            #maybe we change the cluster and mode node modifier )? with a group
+            #if the flags turn on to have a more strict parsing
+            regexp = r"(cluster_\d+_\d+/)?(mod_ble_\d+_\d+_\d+/)?(mod_interconn_\d+_\d+/)?(mod_node_\d+/)?(MUX_|LUT_)(?P<id>\w*)"
+            pattern =re.compile(regexp)
+            res = pattern.search(lutName)
+            extractedName = ''
 
+            if res is not None:
+                extractedName = res.group("id")
+            else:
+                print "ERROR: can't apply pattern on string:" + str(lutName)
+                sys.exit(1)
+
+            if (extractedName is not '') and (extractedName is not None):
+                return extractedName
+            else:
+                print "ERROR: can't extract lut name of string:" + str(lutName)
+                sys.exit(1)
+    
+#    print ('cell: ' + str(cell.instanceName) + ' lutName: ' + str(lutName))
     #for the old vpr versions return the new lutname(id)
     return lutName
 

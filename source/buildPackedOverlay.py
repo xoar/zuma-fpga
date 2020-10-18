@@ -782,6 +782,12 @@ def buildInterconDescription(file,cluster,location,unprocessed,blackbox):
 
 def writeReusableBle(file,cluster,location,bleIndex,unprocessed,blackbox):
 
+    lutId = cluster.LUT_nodes[bleIndex]
+    ffmuxId = cluster.LUT_FFMUX_nodes[bleIndex]
+
+    globs.blemaps[location][bleIndex].append(lutId)
+    globs.blemaps[location][bleIndex].append(ffmuxId)
+    
     buildReusableBleInterface('instantiation',file,cluster,location,bleIndex)
 
     #only queue the desctiption once.
@@ -1152,6 +1158,11 @@ def writeClusters(file,unprocessed,blackbox):
     for location in globs.clusters:
         cluster = globs.clusters[location]
         writeCluster(file,cluster,location,unprocessed,blackbox)
+        
+    for cl in globs.blemaps:
+        for l in globs.blemaps[cl]:
+            print ('Cluster: ' + str(cl) + ' Location: ' + str(l))
+            print ('Nodes: ' + str(globs.blemaps[cl][l]) )
 
 
 #mark nodes of the nodegraph consisting of only one mapped passtrough node as
